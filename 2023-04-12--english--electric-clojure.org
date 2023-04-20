@@ -1,0 +1,110 @@
+* Clever Compilers III: Electric Clojure
+
+** Previously: Clever Compilers I-II
+
+- Svelte
+  - Developer enjoys convenience
+  - Compiler abstracts away /reactivity/, noted inside ~$~-labels
+
+- Rust
+  - Developer enjoys memory safety
+  - Compiler enforces of /ownership/
+
+- Idris
+  - Developer enjoys application correctness
+  - Compiler checks /types/, based on an expressive type system
+
+** Lisp
+
+- Second-oldest programming language in use, from 1958, by John McCarthy
+- Today: Scheme, Common Lisp, Clojure, Emacs-Lisp
+
+*** Symbolic Expressions
+
+Note function application in paranthesed polish/prefix notation.
+
+#+begin_src clojure
+(+ 1 2)      ;; 3
+(list 1 2 3) ;; (1 2 3)
+
+(def my-one 1)
+(defn add1 [x] (+ 1 x))
+#+end_src
+
+*** Quotes
+
+Quote an expressions (with ~quote~ or ~'~) to stop its evaluation.
+
+#+begin_src clojure
+(quote +)          ;; +
+'+                 ;; +
+(list '+ 1 2)      ;; (+ 1 2)
+(list 'list 1 2)   ;; (list 1 2)
+'(list 1 2)        ;; (list 1 2)
+'(list (+ 1 2) 3)  ;; (list (+ 1 2) 3)
+
+;; an expressions that evaluates to its own quotation:
+(
+  (fn [x] (list x (list (quote quote) x)))
+  (quote (fn [x] (list x (list (quote quote) x)))))
+#+end_src
+
+*** Syntax-Quotes
+
+Syntax-quote an expression (with ~`~) to allow explicitely marked parts of it (prefixed with ~~~) to be evaluated.
+
+#+begin_src clojure
+'(list  (+ 1 2) 3) ;; (list (+ 1 2) 3)
+`(list ~(+ 1 2) 3) ;; (list 3 3)
+#+end_src
+
+*** Evaluation
+
+Evaluate (with ~eval~) a quoted expression.
+
+#+begin_src clojure
+(eval '(+ 1 2 3))      ;; 6
+(eval (list '+ 1 2 3)) ;; 6
+#+end_src
+
+*** Macros
+
+Write simple but powerful macros (with ~defmacro~) that will be expanded at compile-time.
+
+#+begin_src clojure
+(defmacro apply-thrice [f x] (quote (f x x x)))
+(apply-thrice * 5) ;; evaluates to: 125
+
+(defmacro definiere [f] `(defn ~f [x] (+ 1 x)))
+(definiere plus1)
+(definiere plusEins)
+(plus1 5)
+#+end_src
+
+#+begin_src js
+function definiere(funktionsName) {
+    function ${funktionsName}(x) {
+        return x + 1;
+    }
+}
+
+definiere("plus1");
+definiere("plusEins");
+
+plus1(3);
+#+end_src
+** Clojure(Script)
+
+| Clojure       | A Lisp for the Java Virtual Machine (JVM) |
+| ClojureScript | Clojure transpiled to JavaScript          |
+
+** [[https://github.com/hyperfiddle/electric][Electric]]
+
+- An experimental web-framework for Clojure(Script), featuring
+  - reactivity, including reactive loops
+  - multi-tier: macros for marking client- or server-side, including ability to arbitrarily nest
+
+- Developer writes single source code, wherein server- and client-side code can be arbitrarily nested
+- Compiler compiles/transpiles source code into server- and client-side code, including the networking in-between
+
+- I recommend the presentation [[https://www.youtube.com/watch?v=fq4_W4vLA6g]["UIs are streaming DAGs"]] by Dustin Getz, the author of Electric

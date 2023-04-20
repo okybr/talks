@@ -1,0 +1,433 @@
+* Clevere Compiler
+
+
+** Was können Compiler?
+
+- Compiler    : Quelltext -> Maschinencode
+- Interpreter : Quelltext -> IO ()
+- Transpiler  : Quelltext -> Quelltext
+
+- /Svelte/ ist ein Transpiler, der dank $-Labels weiß, welche Teile
+  des Quelltexts reaktiv sind und anders übersetzt werden müssen
+
+- Informationen zur Compile-Zeit können nicht nur für Effizienz, sondern auch
+  zur Überprüfung der Korrektheit genutzt werden
+
+
+** Memory Safety, Ownership und Rust
+
+*** Speicherallokation
+
+- Jeder Speicherbereich, dessen Größe erst zur Ausführungszeit bekannt ist, muss
+  (in C mit =malloc=) vom Betriebssystem angefragt werden (und liegt im Heap)
+
+- Nach Gebrauch muss der Speicherbereich genau ein Mal wieder (in C mit =free=)
+  freigegeben werden
+
+
+**** Beispielhafter Quelltext
+
+    #+begin_src c
+    #include <stdio.h>
+    #include <stdlib.h> // für malloc
+
+    int main() {
+      // Lese Arraygröße zur Laufzeit ein:
+      int anzahl;
+      scanf("%d", &anzahl);
+
+      // Definiere array als Referenz auf einen neu allokierten Speicher:
+      int* array = malloc(anzahl*sizeof(int));
+
+      // Gib den Speicherbereich frei, auf den array referiert:
+      free(array);
+    }
+    #+end_src
+
+
+**** Häufige Fehler
+
+
+***** Memory Leak
+
+- Dynamische Speicherbereiche werden nicht freigegeben
+- Folge: Das Programm besetzt Speicherbereiche, ohne sie zu benutzen
+
+
+***** Mehrmalige Freigabe
+
+- Speicherbereiche werden mehrmals freigegeben
+- Folge: Laufzeitfehler
+
+    #+begin_src c
+    #include <stdio.h>
+    #include <stdlib.h>
+
+    int main() {
+      int anzahl;
+      scanf("%d", &anzahl);
+
+      int* array = malloc(anzahl*sizeof(int));
+
+      // Gebe den Speicher mehrmals frei:
+      free(array);
+      free(array);
+    }
+    #+end_src
+
+    #+begin_src
+    malloc: *** error for object ...: pointer being freed was not allocated
+    malloc: *** set a breakpoint in malloc_error_break to debug
+    #+end_src
+
+
+***** Dangling Pointer
+
+- Referenzen, die auf freigegebenene Speicherbereiche zeigen, werden benutzt
+- Folge: Laufzeitfehler
+
+    #+begin_src c
+    #include <stdio.h>
+    #include <stdlib.h>
+
+    int main() {
+      int anzahl;
+      scanf("%d", &anzahl);
+      int* array = malloc(anzahl*sizeof(int));
+
+      free(array);
+
+      for (int i = 0; i < anzahl; i++) {
+        array[i] = i;
+      }
+    }
+    #+end_src
+
+
+*** Resource acquisition is initialization, RAII
+
+#+begin_quote
+Dabei wird die Belegung von Betriebsmitteln an den Konstruktoraufruf einer
+Variablen eines benutzerdefinierten Typs und die Freigabe der Betriebsmittel an
+dessen Destruktoraufruf gebunden. Die automatische Freigabe wird beispielsweise
+durch das Verlassen des Gültigkeitsbereichs ausgelöst (am Blockende, bei
+Ausnahmeauslösung, durch Rückgabe an den Aufrufer usw.), der implizite
+Destruktoraufruf der Variablen sorgt dann für die Wiederfreigabe der Ressource.
+([[https://de.wikipedia.org/wiki/Ressourcenbelegung_ist_Initialisierung][de.wikipedia.org]])
+#+end_quote
+
+- Prinzip, das vor allem bei C++ angewendet wird
+
+
+**** Beispielhafter Quelltext für RAII in C++
+
+    #+begin_src cpp
+    #include <iostream>
+
+    class Objekt {
+
+    private:
+      int* array;
+
+    public:
+      Objekt(const int anzahl) {
+        array = new int[anzahl]; // Setze Objektfeld data
+                                 // als Referenz auf neu allokierten Speicher
+      }
+      ~Objekt() {
+        delete[] array;          // Gebe dynamischen Speicherbereich frei
+      }
+    };
+
+    int main() {
+      int anzahl;
+      std::cin >> anzahl;
+      Objekt objekt(anzahl);
+    }                            // Gültigkeitsbereich der Variable object
+                                 // endet. Destruktor wird implizit aufgerufen
+    #+end_src
+
+
+*** Ownership
+
+- Bei Rust ist RAII teil der Sprache (und des Compilers). Es wird als
+  *Ownership* erzwungen:
+
+- Jede Variable hat einen Geltungsbereich (Scope)
+
+- Für jede Referenz, gibt es jederzeit genau eine mutable Variable, deren
+  Eigentum diese Referenz ist
+
+- Wenn der Geltungsbereich einer mutablen Variable, die über das Eigentum einer
+  Referenz verfügt, endet, dann wird der zur Referenz gehörige Speicherraum
+  freigegeben
+
+
+**** Rust
+
+- Unterscheidung zwischen standardmäßig immutablen und ausdrücklich mutablen
+  Variablen
+
+- Jeder Typ erfüllt entweder den Copy- oder den Drop-Trait:
+
+  #+begin_quote
+  [A]ny type implementing Drop can’t be Copy, because it’s managing some
+  resource besides its own size_of::<T> bytes ([[https://doc.rust-lang.org/core/marker/trait.Copy.html#when-cant-my-type-be-copy][doc.rust-lang.org]])
+  #+end_quote
+
+- Die Implementierung der Drop-Trait für einen Typen beschreibt, wie der
+  Speicherbereich eines Elements dieses Typs freigegeben wird
+
+
+**** Beispielhafter Quelltext
+
+    #+begin_src rust
+    fn main() -> Result<(), Box<dyn Error>> {
+        // Lese Arraygröße zur Laufzeit ein:
+        let mut eingabe = String::new();
+        io::stdin().read_line(&mut eingabe)?;
+        let anzahl: usize = eingabe.trim().parse()?;
+
+        // Definiere array als Referenz auf einen neu allokierten Speicherbereich:
+        let mut array: Vec<i32> = Vec::with_capacity(anzahl);
+
+        // Definiere weitere_referenz als weitere Referenz auf selbigen Speicher:
+        // Dabei passiert ein sogenannter Move.
+        let mut weitere_referenz = array;
+
+        // Versuche Variable array zu benuten:
+        array[0] = 1;
+
+        Ok(())
+
+        // Am Ende des Blocks wird implizit die Drop-Funktion auf array aufgerufen.
+    }
+    #+end_src
+
+    #+begin_src
+    error[E0382]: borrow of moved value: `array`
+      --> memory-safety-ownership.rs:20:5
+       |
+    13 |     let mut array: Vec<i32> = Vec::with_capacity(anzahl);
+       |         --------- move occurs because `array` has type `Vec<i32>`, which does not implement the `Copy` trait
+    ...
+    17 |     let mut weitere_referenz = array;
+       |                                ----- value moved here
+    ...
+    20 |     array[0] = 1;
+       |     ^^^^^ value borrowed here after move
+    #+end_src
+
+
+**** Borrowing
+
+Es kann eine mutable Referenz auf eine mutable Referenz genutzt werden, bevor
+letztere genutzt wird:
+
+    #+begin_src rust
+    fn main() -> Result<(), Box<dyn Error>> {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let size: usize = input.trim().parse()?;
+
+        let mut array: Vec<i32> = Vec::with_capacity(size);
+        let another_reference: &mut Vec<i32> = &mut array;
+
+        array.push(2);
+        another_reference.push(1);
+
+        Ok(())
+    }
+    #+end_src
+
+
+** Type Safety, Typsysteme und Idris
+
+
+*** Shitshow JavaScript
+
+Summe einer Gleitkommazahl und einer Zeichenkette:
+
+    #+begin_src
+    > 10 + '10'
+    '1010'
+    #+end_src
+
+Alles kann =null= oder =undefined= sein:
+
+    #+begin_src javascript
+    function f(x) {
+        if (x === null || x === undefined) {
+            //
+      }
+    }
+    #+end_src
+
+Undefinierte Booleans sind falsy:
+
+    #+begin_src diff
+    const checkPermissions = (ctx, permissions) =>
+-     ctx.user && ctx.user.can(...permissions);
++     !!(ctx.user && ctx.user.can(...permissions));
+    #+end_src
+
+Wahrhaft unverständliches Verständnis von Wahrheit:
+
+- falsy:  "", 0, NaN, false, null, undefined
+- truthy: "-1", "0", "1", "false", "true", -1, -Infinity, 1, Infinity, [0], [1], [[]], [], true, {}
+
+
+*** Typsysteme
+
+- Typen sind hierarchische Mengen
+- Typen wurden als Lösung für die Widersprüche in der Mengenlehre vorgeschlagen,
+  vgl. Russelsche Antinomie:
+
+  "Rasiert sich der Barbier, der genau diejenigen rasiert, die sich selbst nicht
+  rasieren?"
+
+
+*** TypeScript
+
+TypeScript nutzt =:= für Typsignaturen, das sich von ∈ ableitet. =x: T= steht
+also für "x ∈ T" ("x ist Element von T").
+
+TypeScript ist statisch typisiert:
+
+    #+begin_src typescript
+    type Bit = Null | Eins;
+
+    type Mensch = {
+      name: String;
+      gut: Bit;
+    };
+    #+end_src
+
+
+**** Generics
+
+    #+begin_src typescript
+    function anhängen<Typ>(liste: Array<Typ>, element: Typ) {
+      return [...liste, element]
+    }
+    #+end_src
+
+    #+begin_src
+    > anhängen([1,2], 'a')
+    error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+    #+end_src
+
+
+**** Constraints für Generics
+
+    #+begin_src typescript
+    function get<Typ, Schlüssel extends keyof Typ>(
+      element: Typ,
+      schlüssel: Schlüssel
+    ) {
+      return element[schlüssel];
+    }
+
+    type Mensch = { name: String; };
+    const mensch: Mensch = { name: 'Hans Wurst' };
+    get(mensch, 'geburtsdatum');
+    #+end_src
+
+    #+begin_src
+    error TS2345: Argument of type '"geburtsdatum"' is not assignable to parameter of type '"name"'.
+    #+end_src
+
+
+*** Idris
+
+
+**** Array mit bestimmter Länge
+
+Ausgangssituation: Ich will eine Funktion schreiben, die genau 100 Ganzzahlen
+braucht.
+
+    #+begin_src idris
+    data ListeBestimmterLänge : (länge : Nat) -> (element : Type) -> Type where
+      Nix : ListeBestimmterLänge 0 element
+      Das : element -> ListeBestimmterLänge n element -> ListeBestimmterLänge (S n) element
+
+    nehme100ganzzahlen : ListeBestimmterLänge 100 t -> Foo
+    #+end_src
+
+=ListeBestimmterLänge= ist als =Vect= vordefiniert.
+
+
+**** Typen von Typen
+
+    #+begin_src idris
+    liste : List Integer
+    liste = [1,2,3]
+    #+end_src
+
+    #+begin_src
+    > :t List
+    Prelude.List : Type -> Type
+
+    > :t Vect
+    Data.Vect.Vect : Nat -> Type -> Type
+
+    > :t Type
+    Type
+    #+end_src
+
+
+**** Typen als Werte
+
+Eine Funktion, die einen Typen zurückgibt:
+
+    #+begin_src idris
+    singleAsType : Bool -> Type
+    singleAsType True = Nat
+    singleAsType False = List Nat
+    #+end_src
+
+Funktionsaufruf in Typsignatur, um variierende Ausgabetypen zu typisieren:
+
+    #+begin_src idris
+    singleAsValue : (singleAsBool : Bool) -> singleAsType singleAsBool
+    singleAsValue True = 0    -- : Nat
+    singleAsValue False = []  -- : List Nat
+    #+end_src
+
+Funktionsaufruf in Typsignatur, um variierende Eingabetypen zu typisieren:
+
+    #+begin_src idris
+    sum : (single : Bool) -> isSingleton single -> Nat
+    sum True x = x
+    sum False [] = 0
+    sum False (x :: xs) = x + sum False xs
+    #+end_src
+
+
+**** Curry-Horwards-Isomorphismus
+
+- Isomorphismus zwischen typisierten Programmen und mathematischen Beweisen
+
+    #+begin_quote
+    A proof, as far as we are concerned here, is merely a program with a precise
+    enough type to guarantee a particular property of interest.
+    ([[https://docs.idris-lang.org/en/latest/tutorial/theorems.html#simple-theorems][docs.idris-lang.org]])
+    #+end_quote
+
+- Beweise, dass n + 0 = n:
+
+    #+begin_src idris
+    -- Vordefiniert in der Standardbibliothek:
+
+    data Equal : a -> b -> Type where
+      Refl : Equal x x
+
+    cong : (f : t -> u) -> Equal a b -> Equal (f a) (f b)
+    cong f Refl = Refl
+
+    -- Der Beweis:
+
+    plusReducesZ : (n : Nat) -> Equal n (plus n Z)
+    plusReducesZ Z = Refl
+    plusReducesZ (S k) = cong S (plusReducesZ k)
+    #+end_src
