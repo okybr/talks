@@ -100,6 +100,8 @@ plus1(3);
 
 ** [[https://github.com/hyperfiddle/electric][Electric]]
 
+*** Introduction
+
 - An experimental web-framework for Clojure(Script), featuring
   - reactivity, including reactive loops
   - multi-tier: macros for marking client- or server-side, including ability to arbitrarily nest
@@ -107,4 +109,7 @@ plus1(3);
 - Developer writes single source code, wherein server- and client-side code can be arbitrarily nested
 - Compiler compiles/transpiles source code into server- and client-side code, including the networking in-between
 
-- I recommend the presentation [[https://www.youtube.com/watch?v=fq4_W4vLA6g]["UIs are streaming DAGs"]] by Dustin Getz, the author of Electric
+*** Further Reading
+
+- Presentation [[https://www.youtube.com/watch?v=fq4_W4vLA6g]["UIs are streaming DAGs"]] by Dustin Getz, the author of Electric
+- [[https://electric-examples-app.fly.dev][Official Interactive Tutorial on the Web]]
