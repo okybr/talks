@@ -1,0 +1,76 @@
+#+title: Ein Theme, das ganz OK ist
+
+* Idee: Palette möglichst unterschiedlicher Farben
+
+** Rationale
+
+- Motivation:
+  Möglichst einfache Identifizierbarkeit von Code-Highlighting
+
+- Paradigma:
+  - Nicht ästhetisch
+  - Rational optimiert
+
+** Pragmatik
+
+- Farbanzahl: Acht
+
+- Farbfehlsichtigkeit
+  - Aktuell leider unberücksichtigt
+  - Todo
+
+* Herangehensweise mit Farbnamen
+
+- rot, orange, gelb, grün, türkis, blau, lila, rosa?
+- Wie kodieren?
+
+* Herangehensweise mit RGB-basiertem Farbmodell
+
+- Suche acht äquidistante Farben im Farbkreis
+- Problem: Unterschiedlich wahrgenommene Helligkeit
+  #0000ff #ff0000 #00ff00
+- „Relativitätstheorie der Farben“
+
+* Perzeptuelle Farbmodelle
+
+- Lange Geschichte, inklusive psychologischer Experimente:
+  „CIE 1931 XYZ was the first attempt to produce a color space based on measurements of human color perception“ ([[https://en.wikipedia.org/wiki/List_of_color_spaces_and_their_uses][en.wikipedia.org]])
+
+- Nie allgemeingültig, immer nur annähernd
+- Farbwahrnehmung ist individuell unterschiedlich
+  - Biogenetisch: S-, M- und L-Zapfenzellen
+  - Soziokulturell: „The Himba people have been found to categorize colors differently from most Westerners and are able to easily distinguish close shades of green, barely discernible for most people“ ([[https://en.wikipedia.org/wiki/Color_vision#Subjectivity_of_color_perception][en.wikipedia.org]])
+
+* Das OKLAB Farbmodell
+
+- Theorie und Prototyp:
+  [[https://bottosson.github.io/posts/oklab/][Björn Ottosson, 2020]]
+
+- Optimierungen
+  - Gute Prädiktabilität von Helligkeit, Sättigung und Farbton
+  - Gute Farbübergänge
+  - Gutes numerisches Verhalten
+
+- Varianten:
+  Oklab, Oklch, Okhsl, Okhsv
+
+- Webstandard-Entwurf: [[https://www.w3.org/TR/css-color-4/][CSS Color Module Level 4]]
+- CSS-Funktionen [[https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklab][oklab()]] und [[https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklch][oklch()]] in meisten Browsern umgesetzt
+
+* Herangehensweise mit OKLCH
+
+- Maximiere Farbtonabstand zwischen Farben: 360°/8 = 45°
+- Öffne [[https://oklch.com][oklch.com]]
+- Maximiere Farbsättigung: C=0.165
+- Maximiere Helligkeit: L=71.1%
+- Bestimme Farbtonoffset, sodass Löcher überbrückt werden: 10°
+- Bestimme Farben:
+
+  #f5708a
+  #ee8122
+  #b8a300
+  #54bc5c
+  #00bab3
+  #00aff2
+  #9095ff
+  #d47ada
